@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consulta de Reparación</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --azul:     #1B3A6B;
+    --azul-med: #2A5298;
+    --celeste:  #4A90D9;
+    --verde:    #2ECC71;
+    --naranja:  #E67E22;
+    --rojo:     #E74C3C;
+    --gris-bg:  #F0F4FA;
+    --gris-brd: #D0DBF0;
+    --texto:    #1A1F2E;
+    --muted:    #6B7A99;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--gris-bg);
+    color: var(--texto);
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, var(--azul) 0%, var(--azul-med) 100%);
+    padding: 28px 32px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 4px 20px rgba(27,58,107,0.25);
+  }
+
+  .logo-icon {
+    width: 48px; height: 48px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+  }
+
+  header h1 { color: #fff; font-size: 1.4rem; font-weight: 600; letter-spacing: -0.3px; }
+  header p  { color: rgba(255,255,255,0.65); font-size: 0.82rem; margin-top: 2px; }
+
+  main { max-width: 780px; margin: 0 auto; padding: 36px 20px 60px; }
+
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px 32px;
+    box-shadow: 0 2px 12px rgba(27,58,107,0.08);
+    margin-bottom: 24px;
+    border: 1px solid var(--gris-brd);
+  }
+
+  /* ESTADO CARGA */
+  .loading-bar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 0 4px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--gris-brd);
+    border-top-color: var(--celeste);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+  .chip-ok      { background: #EAFAF3; color: #1E8449; border: 1px solid #A9DFBF; }
+  .chip-error   { background: #FDEDEC; color: #C0392B; border: 1px solid #F1948A; }
+  .chip-loading { background: #EAF2FB; color: var(--azul-med); border: 1px solid #BDD5F0; }
+
+  /* BUSQUEDA */
+  .search-row { display: flex; gap: 12px; align-items: flex-end; }
+  .input-wrap { flex: 1; }
+  .input-wrap label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .input-wrap input {
+    width: 100%;
+    padding: 14px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 500;
+    border: 2px solid var(--gris-brd);
+    border-radius: 10px;
+    color: var(--azul);
+    background: var(--gris-bg);
+    transition: border-color 0.2s;
+    outline: none;
+  }
+  .input-wrap input:focus { border-color: var(--celeste); background: #fff; }
+
+  .btn-buscar {
+    padding: 14px 28px;
+    background: linear-gradient(135deg, var(--azul-med), var(--celeste));
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .btn-buscar:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-buscar:active { transform: translateY(0); }
+  .btn-buscar:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+  /* TIMELINE */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 9px; top: 0; bottom: 0;
+    width: 2px;
+    background: var(--gris-brd);
+  }
+  .tl-step { position: relative; padding: 0 0 22px 20px; }
+  .tl-step:last-child { padding-bottom: 0; }
+  .tl-dot {
+    position: absolute; left: -19px; top: 3px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    border: 2px solid #fff;
+    z-index: 1;
+  }
+  .tl-dot.done    { background: var(--verde); color: #fff; }
+  .tl-dot.pending { background: var(--gris-brd); color: var(--muted); }
+  .tl-dot.current { background: var(--celeste); color: #fff; }
+  .tl-label { font-size: 0.88rem; font-weight: 600; color: var(--texto); }
+  .tl-label.pending { color: var(--muted); font-weight: 400; }
+  .tl-fecha { font-size: 0.78rem; color: var(--muted); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+
+  /* ESTADO BADGE */
+  .estado-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    border-radius: 24px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+  .estado-ingresado   { background: #EBF5FB; color: #2980B9; }
+  .estado-presupuesto { background: #FEF9E7; color: #D4AC0D; }
+  .estado-notificado  { background: #FDF2E9; color: #CA6F1E; }
+  .estado-reparado    { background: #EAFAF1; color: #1E8449; }
+  .estado-entregado   { background: #F4ECF7; color: #7D3C98; }
+  .estado-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* INFO GRID */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 6px;
+  }
+  @media (max-width: 520px) { .info-grid { grid-template-columns: 1fr; } }
+  .info-item label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .info-item span {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--texto);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  .motivo-pill {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #EAF2FB;
+    color: var(--azul-med);
+  }
+
+  .error-box {
+    background: #FDEDEC;
+    border: 1px solid #F1948A;
+    border-radius: 10px;
+    padding: 16px 20px;
+    color: #C0392B;
+    font-size: 0.88rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  hr { border: none; border-top: 1px solid var(--gris-brd); margin: 20px 0; }
+  #resultado { display: none; }
+
+  .hint { font-size: 0.8rem; color: var(--muted); margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">🦻</div>
+  <div>
+    <h1>Consulta de Reparaciones</h1>
+    <p>Ingresá tu número de reparación para ver el estado actual</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- BUSQUEDA -->
+  <div class="card">
+    <!-- Estado de carga del archivo -->
+    <div id="archivoStatus"></div>
+    <div class="loading-bar" id="loadingBar">
+      <div class="spinner"></div>
+      <span id="loadingMsg">Descargando datos desde Google Drive…</span>
+    </div>
+
+    <div class="search-row">
+      <div class="input-wrap">
+        <label>Número de reparación</label>
+        <input type="number" id="nroInput" placeholder="Ej: 1234" min="1"
+               onkeydown="if(event.key==='Enter') buscar()">
+      </div>
+      <button class="btn-buscar" id="btnBuscar" onclick="buscar()" disabled>
+        🔍 Consultar
+      </button>
+    </div>
+    <p class="hint" id="hintText">Configurá el archivo de Google Drive para comenzar.</p>
+  </div>
+
+  <!-- RESULTADO -->
+  <div id="resultado"></div>
+
+</main>
+
+<script>
+// ─── CONFIGURACIÓN ────────────────────────────────────────────────────────────
+// Podés poner acá el File ID por defecto para que cargue automáticamente al abrir
+const XLS_URL = "https://raw.githubusercontent.com/hecristiani/REPARACIONES-MAH/main/AUD_REPA.xls";
+
+// ─── ESTADO GLOBAL ────────────────────────────────────────────────────────────
+let registros = [];
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  cargarDesdeGitHub();
+});
+
+// ─── CARGA DESDE GITHUB ───────────────────────────────────────────────────────
+async function cargarDesdeGitHub() {
+  setStatus('loading', 'Cargando datos…');
+  document.getElementById('btnBuscar').disabled = true;
+  document.getElementById('loadingBar').style.display = 'flex';
+  document.getElementById('resultado').style.display = 'none';
+
+  try {
+    const resp = await fetch(XLS_URL);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const buffer = await resp.arrayBuffer();
+
+    // Intentar múltiples estrategias de lectura
+    let registrosCargados = [];
+    const estrategias = [
+      { type: 'array', cellDates: true },
+      { type: 'array', cellDates: false },
+      { type: 'array', cellDates: true, raw: true },
+      { type: 'array', cellDates: true, dense: true },
+    ];
+
+    for (const opts of estrategias) {
+      try {
+        const wb = XLSX.read(buffer, opts);
+        console.log('Hojas:', wb.SheetNames, 'Opts:', opts);
+        for (const sheetName of wb.SheetNames) {
+          const ws = wb.Sheets[sheetName];
+          const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+          console.log('Hoja:', sheetName, 'Rango:', ws['!ref'], 'Filas:', range.e.r);
+          // Intentar con header:1 para ver estructura cruda
+          const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+          console.log('Filas raw:', raw.length, 'Primera fila:', raw[0]);
+          if (raw.length > 1) {
+            // Usar primera fila como encabezado
+            const headers = raw[0];
+            registrosCargados = raw.slice(1).map(row => {
+              const obj = {};
+              headers.forEach((h, i) => { obj[h] = row[i] ?? null; });
+              return obj;
+            });
+            console.log('Registros:', registrosCargados.length, 'Primero:', registrosCargados[0]);
+            break;
+          }
+        }
+        if (registrosCargados.length > 0) break;
+      } catch(e) {
+        console.warn('Estrategia falló:', opts, e);
+      }
+    }
+    registros = registrosCargados;
+
+    document.getElementById('loadingBar').style.display = 'none';
+    setStatus('ok', `✓ Datos cargados — ${registros.length} reparación${registros.length !== 1 ? 'es' : ''} disponibles`);
+    document.getElementById('btnBuscar').disabled = false;
+    document.getElementById('hintText').textContent = 'Ingresá el número de reparación y hacé clic en Consultar.';
+
+  } catch(err) {
+    document.getElementById('loadingBar').style.display = 'none';
+    setStatus('error', 'No se pudieron cargar los datos. Intentá recargar la página.');
+    console.error(err);
+  }
+}
+
+function setStatus(tipo, msg) {
+  const cls = { ok: 'chip-ok', error: 'chip-error', loading: 'chip-loading' };
+  const ico = { ok: '✅', error: '❌', loading: '⏳' };
+  document.getElementById('archivoStatus').innerHTML =
+    `<div class="status-chip ${cls[tipo]}">${ico[tipo]} ${msg}</div>`;
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+const MOTIVOS = {
+  'S':'Sin falla','C':'Cableado','L':'Limpieza','R':'Con repuesto',
+  'G':'En garantía','M':'Cambio de audífono','V':'Verificación de estado',
+  'AGE':'Garantía extendida','MSC':'Sin cargo mutual (no socios)'
+};
+
+function fmtFecha(val) {
+  if (!val || val === null) return null;
+  const s = String(val).trim();
+  if (!s || s === '-   -' || s === '-' || s === '0') return null;
+  if (val instanceof Date) {
+    if (isNaN(val)) return null;
+    return val.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  if (/\d{2}-[A-Za-z]{3}-\d{2,4}/.test(s)) return s;
+  const n = Number(val);
+  if (!isNaN(n) && n > 1000) {
+    const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+    if (!isNaN(d)) return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  return s;
+}
+
+// ─── BÚSQUEDA ─────────────────────────────────────────────────────────────────
+function buscar() {
+  const nro = parseInt(document.getElementById('nroInput').value);
+  const div = document.getElementById('resultado');
+
+  if (!nro) {
+    div.style.display = 'block';
+    div.innerHTML = `<div class="card"><div class="error-box">⚠️ Ingresá un número de reparación válido.</div></div>`;
+    return;
+  }
+
+  const reg = registros.find(r => parseInt(r['NRO_REPAR']) === nro);
+
+  if (!reg) {
+    div.style.display = 'block';
+    div.innerHTML = `<div class="card"><div class="error-box">🔍 No se encontró la reparación <strong>N° ${nro}</strong>. Verificá el número e intentá nuevamente.</div></div>`;
+    return;
+  }
+
+  const etapas = [
+    { key: 'F_INGRESO',  label: 'Ingreso al laboratorio',   horaKey: 'HORA' },
+    { key: 'F_PRESUPTO', label: 'Presupuesto realizado',    horaKey: null },
+    { key: 'F_NOTIFIC',  label: 'Notificación al afiliado', horaKey: 'H_NOTIFIC' },
+    { key: 'F_REPARAC',  label: 'Reparación ejecutada',     horaKey: null },
+    { key: 'F_SALIDA',   label: 'Equipo entregado / salida',horaKey: null },
+  ];
+
+  let estadoActual = 'ingresado';
+  let estadoLabel  = 'Ingresado — en espera de presupuesto';
+  let etapaActualIdx = 0;
+
+  for (let i = etapas.length - 1; i >= 0; i--) {
+    if (fmtFecha(reg[etapas[i].key])) { etapaActualIdx = i; break; }
+  }
+
+  if      (fmtFecha(reg['F_SALIDA']))   { estadoActual='entregado';   estadoLabel='Entregado'; }
+  else if (fmtFecha(reg['F_REPARAC']))  { estadoActual='reparado';    estadoLabel='Reparado — listo para retirar'; }
+  else if (fmtFecha(reg['F_NOTIFIC']))  {
+    estadoActual='notificado';
+    const acept = reg['ACEPT_PPTO'];
+    estadoLabel = (acept===true||acept==='T'||acept==='.T.')
+      ? 'Presupuesto aceptado — en reparación'
+      : 'Notificado — aguardando respuesta del afiliado';
+  }
+  else if (fmtFecha(reg['F_PRESUPTO'])) { estadoActual='presupuesto'; estadoLabel='Presupuesto listo — pendiente de notificación'; }
+  else if (fmtFecha(reg['F_INGRESO']))  { estadoActual='ingresado';   estadoLabel='Ingresado — en espera de presupuesto'; }
+
+  let tlHtml = '';
+  for (let i = 0; i < etapas.length; i++) {
+    const etapa = etapas[i];
+    const fecha = fmtFecha(reg[etapa.key]);
+    const hora  = etapa.horaKey ? reg[etapa.horaKey] : null;
+    const isDone = !!fecha;
+    const isCurrent = !isDone && i === etapaActualIdx + 1;
+    tlHtml += `
+      <div class="tl-step">
+        <div class="tl-dot ${isDone?'done':isCurrent?'current':'pending'}">${isDone?'✓':isCurrent?'●':'○'}</div>
+        <div class="tl-label ${isDone||isCurrent?'':'pending'}">${etapa.label}</div>
+        <div class="tl-fecha">${isDone ? `${fecha}${hora?' · '+hora:''}` : isCurrent?'Etapa actual':'Pendiente'}</div>
+      </div>`;
+  }
+
+  const motivoCod = reg['REPARACIO'] ? String(reg['REPARACIO']).trim() : null;
+  const motivoTxt = motivoCod && MOTIVOS[motivoCod]
+    ? `<span class="motivo-pill">${motivoCod} — ${MOTIVOS[motivoCod]}</span>`
+    : (motivoCod ? `<span class="motivo-pill">${motivoCod}</span>` : '<span style="color:var(--muted)">Sin definir</span>');
+
+  const presup  = reg['PRESUPTO']  && Number(reg['PRESUPTO'])  > 0 ? `$${Number(reg['PRESUPTO']).toLocaleString('es-AR',{minimumFractionDigits:2})}` : '—';
+  const cargoAf = reg['CARGO_AF']  && Number(reg['CARGO_AF'])  > 0 ? `$${Number(reg['CARGO_AF']).toLocaleString('es-AR',{minimumFractionDigits:2})}` : '—';
+  const cargoOs = reg['CARGO_OS']  && Number(reg['CARGO_OS'])  > 0 ? `$${Number(reg['CARGO_OS']).toLocaleString('es-AR',{minimumFractionDigits:2})}` : '—';
+
+  const badgeClass = {ingresado:'estado-ingresado',presupuesto:'estado-presupuesto',notificado:'estado-notificado',reparado:'estado-reparado',entregado:'estado-entregado'}[estadoActual];
+
+  div.style.display = 'block';
+  div.innerHTML = `
+    <div class="card">
+      <div class="section-label">Reparación N° ${nro}</div>
+      <div class="estado-badge ${badgeClass}">
+        <span class="estado-dot"></span>${estadoLabel}
+      </div>
+
+      <div class="section-label">Datos del equipo</div>
+      <div class="info-grid">
+        <div class="info-item"><label>Delegación</label><span>${reg['DELEG']??'—'}</span></div>
+        <div class="info-item"><label>N° de serie</label><span>${reg['NRO_SERIE']??'—'}</span></div>
+        <div class="info-item"><label>Modelo</label><span>${reg['COD_MODELO']??'—'} / Marca ${reg['COD_MARCA']??'—'}</span></div>
+        <div class="info-item"><label>Motivo</label><span>${motivoTxt}</span></div>
+        <div class="info-item"><label>N° de remito</label><span>${reg['NRO_REMITO']&&Number(reg['NRO_REMITO'])>0?reg['NRO_REMITO']:'—'}</span></div>
+      </div>
+
+      <hr>
+      <div class="section-label">Seguimiento del proceso</div>
+      <div class="timeline">${tlHtml}</div>
+
+      ${Number(reg['PRESUPTO'])>0?`
+      <hr>
+      <div class="section-label">Facturación</div>
+      <div class="info-grid">
+        <div class="info-item"><label>Presupuesto total</label><span>${presup}</span></div>
+        <div class="info-item"><label>Cargo afiliado</label><span>${cargoAf}</span></div>
+        <div class="info-item"><label>Cargo OS</label><span>${cargoOs}</span></div>
+      </div>`:''}
+    </div>`;
+}
+</script>
+</body>
+</html>
